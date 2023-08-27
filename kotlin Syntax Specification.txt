@@ -1,0 +1,1093 @@
+Notation
+The notation used on this page corresponds to the ANTLR 4 notation with a few exceptions for better readability:
+
+omitted lexer rule actions and commands,
+omitted lexical modes.
+Short description:
+
+operator | denotes alternative,
+operator * denotes iteration (zero or more),
+operator + denotes iteration (one or more),
+operator ? denotes option (zero or one),
+operator .. denotes range (from left to right),
+operator ~ denotes negation.
+Grammar source files
+Kotlin grammar source files (in ANTLR format) are located in the Kotlin specification repository:
+
+KotlinLexer.g4 describes lexical structure;
+UnicodeClasses.g4 describes the characters that can be used in identifiers (these rules are omitted on this page for better readability);
+KotlinParser.g4 describes syntax.
+The grammar on this page corresponds to the grammar files above.
+
+Symbols and naming
+Terminal symbol names start with an uppercase letter, e.g. Identifier.
+Non-terminal symbol names start with a lowercase letter, e.g. kotlinFile.
+
+Symbol definitions may be documented with attributes:
+
+start attribute denotes a symbol that represents the whole source file (see kotlinFile and script),
+helper attribute denotes a lexer fragment rule (used only inside other terminal symbols).
+Also for better readability some simplifications are made:
+
+lexer rules consisting of one string literal element are inlined to the use site,
+new line tokens are excluded (new lines are not allowed in some places, see source grammar files for details).
+Scope
+The grammar corresponds to the latest stable version of the Kotlin compiler excluding lexer and parser rules for experimental features that are disabled by default.
+
+Syntax grammar
+General
+Relevant pages: Packages
+
+start
+kotlinFile
+  : shebangLine? fileAnnotation* packageHeader importList topLevelObject* EOF
+  ;
+start
+script
+  : shebangLine? fileAnnotation* packageHeader importList (statement semi)* EOF
+  ;
+shebangLine (used by kotlinFile, script)
+  : ShebangLine
+  ;
+fileAnnotation (used by kotlinFile, script)
+  : ('@' | AT_PRE_WS) 'file' ':' (('[' unescapedAnnotation+ ']') | unescapedAnnotation)
+  ;
+See Packages
+
+packageHeader (used by kotlinFile, script)
+  : ('package' identifier semi?)?
+  ;
+See Imports
+
+importList (used by kotlinFile, script)
+  : importHeader*
+  ;
+importHeader (used by importList)
+  : 'import' identifier (('.' '*') | importAlias)? semi?
+  ;
+importAlias (used by importHeader)
+  : 'as' simpleIdentifier
+  ;
+topLevelObject (used by kotlinFile)
+  : declaration semis?
+  ;
+typeAlias (used by declaration)
+  : modifiers? 'typealias' simpleIdentifier typeParameters? '=' type
+  ;
+declaration (used by topLevelObject, classMemberDeclaration, statement)
+  : classDeclaration
+  | objectDeclaration
+  | functionDeclaration
+  | propertyDeclaration
+  | typeAlias
+  ;
+Classes
+See Classes and Inheritance
+
+classDeclaration (used by declaration)
+  : modifiers? ('class' | ('fun'? 'interface'))
+    simpleIdentifier typeParameters?
+    primaryConstructor?
+    (':' delegationSpecifiers)?
+    typeConstraints?
+    (classBody | enumClassBody)?
+  ;
+primaryConstructor (used by classDeclaration)
+  : (modifiers? 'constructor')? classParameters
+  ;
+classBody (used by classDeclaration, companionObject, objectDeclaration, enumEntry, objectLiteral)
+  : '{' classMemberDeclarations '}'
+  ;
+classParameters (used by primaryConstructor)
+  : '(' (classParameter (',' classParameter)* ','?)? ')'
+  ;
+classParameter (used by classParameters)
+  : modifiers? ('val' | 'var')? simpleIdentifier ':' type ('=' expression)?
+  ;
+delegationSpecifiers (used by classDeclaration, companionObject, objectDeclaration, objectLiteral)
+  : annotatedDelegationSpecifier (',' annotatedDelegationSpecifier)*
+  ;
+delegationSpecifier (used by annotatedDelegationSpecifier)
+  : constructorInvocation
+  | explicitDelegation
+  | userType
+  | functionType
+  | 'suspend' functionType
+  ;
+constructorInvocation (used by delegationSpecifier, unescapedAnnotation)
+  : userType valueArguments
+  ;
+annotatedDelegationSpecifier (used by delegationSpecifiers)
+  : annotation* delegationSpecifier
+  ;
+explicitDelegation (used by delegationSpecifier)
+  : (userType | functionType) 'by' expression
+  ;
+See Generic classes
+
+typeParameters (used by typeAlias, classDeclaration, functionDeclaration, propertyDeclaration)
+  : '<' typeParameter (',' typeParameter)* ','? '>'
+  ;
+typeParameter (used by typeParameters)
+  : typeParameterModifiers? simpleIdentifier (':' type)?
+  ;
+See Generic constraints
+
+typeConstraints (used by classDeclaration, functionDeclaration, propertyDeclaration, anonymousFunction)
+  : 'where' typeConstraint (',' typeConstraint)*
+  ;
+typeConstraint (used by typeConstraints)
+  : annotation* simpleIdentifier ':' type
+  ;
+Class members
+classMemberDeclarations (used by classBody, enumClassBody)
+  : (classMemberDeclaration semis?)*
+  ;
+classMemberDeclaration (used by classMemberDeclarations)
+  : declaration
+  | companionObject
+  | anonymousInitializer
+  | secondaryConstructor
+  ;
+anonymousInitializer (used by classMemberDeclaration)
+  : 'init' block
+  ;
+companionObject (used by classMemberDeclaration)
+  : modifiers? 'companion' 'data'? 'object'
+    simpleIdentifier?
+    (':' delegationSpecifiers)? classBody?
+  ;
+functionValueParameters (used by functionDeclaration, secondaryConstructor)
+  : '(' (functionValueParameter (',' functionValueParameter)* ','?)? ')'
+  ;
+functionValueParameter (used by functionValueParameters)
+  : parameterModifiers? parameter ('=' expression)?
+  ;
+functionDeclaration (used by declaration)
+  : modifiers? 'fun' typeParameters?
+    (receiverType '.')?
+    simpleIdentifier functionValueParameters
+    (':' type)? typeConstraints?
+    functionBody?
+  ;
+functionBody (used by functionDeclaration, getter, setter, anonymousFunction)
+  : block
+  | '=' expression
+  ;
+variableDeclaration (used by multiVariableDeclaration, propertyDeclaration, forStatement, lambdaParameter, whenSubject)
+  : annotation* simpleIdentifier (':' type)?
+  ;
+multiVariableDeclaration (used by propertyDeclaration, forStatement, lambdaParameter)
+  : '(' variableDeclaration (',' variableDeclaration)* ','? ')'
+  ;
+See Properties and Fields
+
+propertyDeclaration (used by declaration)
+  : modifiers? ('val' | 'var') typeParameters?
+    (receiverType '.')?
+    (multiVariableDeclaration | variableDeclaration)
+    typeConstraints?
+    (('=' expression) | propertyDelegate)? ';'?
+    ((getter? (semi? setter)?) | (setter? (semi? getter)?))
+  ;
+propertyDelegate (used by propertyDeclaration)
+  : 'by' expression
+  ;
+getter (used by propertyDeclaration)
+  : modifiers? 'get' ('(' ')' (':' type)? functionBody)?
+  ;
+setter (used by propertyDeclaration)
+  : modifiers? 'set' ('(' functionValueParameterWithOptionalType ','? ')' (':' type)? functionBody)?
+  ;
+parametersWithOptionalType (used by anonymousFunction)
+  : '('
+    (functionValueParameterWithOptionalType (',' functionValueParameterWithOptionalType)* ','?)? ')'
+  ;
+functionValueParameterWithOptionalType (used by setter, parametersWithOptionalType)
+  : parameterModifiers? parameterWithOptionalType ('=' expression)?
+  ;
+parameterWithOptionalType (used by functionValueParameterWithOptionalType)
+  : simpleIdentifier (':' type)?
+  ;
+parameter (used by functionValueParameter, functionTypeParameters)
+  : simpleIdentifier ':' type
+  ;
+See Object expressions and Declarations
+
+objectDeclaration (used by declaration)
+  : modifiers? 'object' simpleIdentifier (':' delegationSpecifiers)? classBody?
+  ;
+secondaryConstructor (used by classMemberDeclaration)
+  : modifiers? 'constructor' functionValueParameters
+    (':' constructorDelegationCall)? block?
+  ;
+constructorDelegationCall (used by secondaryConstructor)
+  : ('this' | 'super') valueArguments
+  ;
+Enum classes
+See Enum classes
+
+enumClassBody (used by classDeclaration)
+  : '{' enumEntries? (';' classMemberDeclarations)? '}'
+  ;
+enumEntries (used by enumClassBody)
+  : enumEntry (',' enumEntry)* ','?
+  ;
+enumEntry (used by enumEntries)
+  : modifiers? simpleIdentifier valueArguments? classBody?
+  ;
+Types
+See Types
+
+type (used by typeAlias, classParameter, typeParameter, typeConstraint, functionDeclaration, variableDeclaration, getter, setter, parameterWithOptionalType, parameter, typeProjection, functionType, functionTypeParameters, parenthesizedType, infixOperation, asExpression, lambdaParameter, anonymousFunction, superExpression, typeTest, catchBlock)
+  : typeModifiers?
+    (functionType | parenthesizedType | nullableType | typeReference | definitelyNonNullableType)
+  ;
+typeReference (used by type, nullableType, receiverType)
+  : userType
+  | 'dynamic'
+  ;
+nullableType (used by type, receiverType)
+  : (typeReference | parenthesizedType) quest+
+  ;
+quest (used by nullableType)
+  : '?'
+  | QUEST_WS
+  ;
+userType (used by delegationSpecifier, constructorInvocation, explicitDelegation, typeReference, parenthesizedUserType, definitelyNonNullableType, unescapedAnnotation)
+  : simpleUserType ('.' simpleUserType)*
+  ;
+simpleUserType (used by userType)
+  : simpleIdentifier typeArguments?
+  ;
+typeProjection (used by typeArguments)
+  : typeProjectionModifiers? type
+  | '*'
+  ;
+typeProjectionModifiers (used by typeProjection)
+  : typeProjectionModifier+
+  ;
+typeProjectionModifier (used by typeProjectionModifiers)
+  : varianceModifier
+  | annotation
+  ;
+functionType (used by delegationSpecifier, explicitDelegation, type)
+  : (receiverType '.')? functionTypeParameters '->' type
+  ;
+functionTypeParameters (used by functionType)
+  : '(' (parameter | type)? (',' (parameter | type))* ','? ')'
+  ;
+parenthesizedType (used by type, nullableType, receiverType)
+  : '(' type ')'
+  ;
+receiverType (used by functionDeclaration, propertyDeclaration, functionType, callableReference)
+  : typeModifiers? (parenthesizedType | nullableType | typeReference)
+  ;
+parenthesizedUserType (used by parenthesizedUserType, definitelyNonNullableType)
+  : '(' (userType | parenthesizedUserType) ')'
+  ;
+definitelyNonNullableType (used by type)
+  : typeModifiers? (userType | parenthesizedUserType) '&' typeModifiers?
+    (userType | parenthesizedUserType)
+  ;
+Statements
+statements (used by block, lambdaLiteral)
+  : (statement (semis statement)*)? semis?
+  ;
+statement (used by script, statements, controlStructureBody)
+  : (label | annotation)* (declaration | assignment | loopStatement | expression)
+  ;
+See Returns and jumps
+
+label (used by statement, unaryPrefix, annotatedLambda)
+  : simpleIdentifier ('@' | AT_POST_WS)
+  ;
+controlStructureBody (used by forStatement, whileStatement, doWhileStatement, ifExpression, whenEntry)
+  : block
+  | statement
+  ;
+block (used by anonymousInitializer, functionBody, secondaryConstructor, controlStructureBody, tryExpression, catchBlock, finallyBlock)
+  : '{' statements '}'
+  ;
+loopStatement (used by statement)
+  : forStatement
+  | whileStatement
+  | doWhileStatement
+  ;
+forStatement (used by loopStatement)
+  : 'for'
+    '(' annotation* (variableDeclaration | multiVariableDeclaration) 'in' expression ')'
+    controlStructureBody?
+  ;
+whileStatement (used by loopStatement)
+  : 'while' '(' expression ')' (controlStructureBody | ';')
+  ;
+doWhileStatement (used by loopStatement)
+  : 'do' controlStructureBody? 'while' '(' expression ')'
+  ;
+assignment (used by statement)
+  : ((directlyAssignableExpression '=') | (assignableExpression assignmentAndOperator)) expression
+  ;
+semi (used by script, packageHeader, importHeader, propertyDeclaration, whenEntry)
+  : 
+  ;
+semis (used by topLevelObject, classMemberDeclarations, statements)
+  : 
+  ;
+Expressions
+Precedence	Title	Symbols
+Highest	Postfix	++, --, ., ?., ?
+ 	Prefix	-, +, ++, --, !, label
+ 	Type RHS	:, as, as?
+ 	Multiplicative	*, /, %
+ 	Additive	+, -
+ 	Range	..
+ 	Infix function	simpleIdentifier
+ 	Elvis	?:
+ 	Named checks	in, !in, is, !is
+ 	Comparison	<, >, <=, >=
+ 	Equality	==, !=, ===, !==
+ 	Conjunction	&&
+ 	Disjunction	||
+ 	Spread operator	*
+Lowest	Assignment	=, +=, -=, *=, /=, %=
+expression (used by classParameter, explicitDelegation, functionValueParameter, functionBody, propertyDeclaration, propertyDelegate, functionValueParameterWithOptionalType, statement, forStatement, whileStatement, doWhileStatement, assignment, indexingSuffix, valueArgument, parenthesizedExpression, collectionLiteral, lineStringExpression, multiLineStringExpression, ifExpression, whenSubject, whenCondition, rangeTest, jumpExpression)
+  : disjunction
+  ;
+disjunction (used by expression)
+  : conjunction ('||' conjunction)*
+  ;
+conjunction (used by disjunction)
+  : equality ('&&' equality)*
+  ;
+equality (used by conjunction)
+  : comparison (equalityOperator comparison)*
+  ;
+comparison (used by equality)
+  : genericCallLikeComparison (comparisonOperator genericCallLikeComparison)*
+  ;
+genericCallLikeComparison (used by comparison)
+  : infixOperation callSuffix*
+  ;
+infixOperation (used by genericCallLikeComparison)
+  : elvisExpression ((inOperator elvisExpression) | (isOperator type))*
+  ;
+elvisExpression (used by infixOperation)
+  : infixFunctionCall (elvis infixFunctionCall)*
+  ;
+elvis (used by elvisExpression)
+  : '?' ':'
+  ;
+infixFunctionCall (used by elvisExpression)
+  : rangeExpression (simpleIdentifier rangeExpression)*
+  ;
+rangeExpression (used by infixFunctionCall)
+  : additiveExpression (('..' | '..<') additiveExpression)*
+  ;
+additiveExpression (used by rangeExpression)
+  : multiplicativeExpression (additiveOperator multiplicativeExpression)*
+  ;
+multiplicativeExpression (used by additiveExpression)
+  : asExpression (multiplicativeOperator asExpression)*
+  ;
+asExpression (used by multiplicativeExpression)
+  : prefixUnaryExpression (asOperator type)*
+  ;
+prefixUnaryExpression (used by asExpression, assignableExpression)
+  : unaryPrefix* postfixUnaryExpression
+  ;
+unaryPrefix (used by prefixUnaryExpression)
+  : annotation
+  | label
+  | prefixUnaryOperator
+  ;
+postfixUnaryExpression (used by prefixUnaryExpression, directlyAssignableExpression)
+  : primaryExpression postfixUnarySuffix*
+  ;
+postfixUnarySuffix (used by postfixUnaryExpression)
+  : postfixUnaryOperator
+  | typeArguments
+  | callSuffix
+  | indexingSuffix
+  | navigationSuffix
+  ;
+directlyAssignableExpression (used by assignment, parenthesizedDirectlyAssignableExpression)
+  : postfixUnaryExpression assignableSuffix
+  | simpleIdentifier
+  | parenthesizedDirectlyAssignableExpression
+  ;
+parenthesizedDirectlyAssignableExpression (used by directlyAssignableExpression)
+  : '(' directlyAssignableExpression ')'
+  ;
+assignableExpression (used by assignment, parenthesizedAssignableExpression)
+  : prefixUnaryExpression
+  | parenthesizedAssignableExpression
+  ;
+parenthesizedAssignableExpression (used by assignableExpression)
+  : '(' assignableExpression ')'
+  ;
+assignableSuffix (used by directlyAssignableExpression)
+  : typeArguments
+  | indexingSuffix
+  | navigationSuffix
+  ;
+indexingSuffix (used by postfixUnarySuffix, assignableSuffix)
+  : '[' expression (',' expression)* ','? ']'
+  ;
+navigationSuffix (used by postfixUnarySuffix, assignableSuffix)
+  : memberAccessOperator (simpleIdentifier | parenthesizedExpression | 'class')
+  ;
+callSuffix (used by genericCallLikeComparison, postfixUnarySuffix)
+  : typeArguments? ((valueArguments? annotatedLambda) | valueArguments)
+  ;
+annotatedLambda (used by callSuffix)
+  : annotation* label? lambdaLiteral
+  ;
+typeArguments (used by simpleUserType, postfixUnarySuffix, assignableSuffix, callSuffix)
+  : '<' typeProjection (',' typeProjection)* ','? '>'
+  ;
+valueArguments (used by constructorInvocation, constructorDelegationCall, enumEntry, callSuffix)
+  : '(' (valueArgument (',' valueArgument)* ','?)? ')'
+  ;
+valueArgument (used by valueArguments)
+  : annotation? (simpleIdentifier '=')? '*'? expression
+  ;
+primaryExpression (used by postfixUnaryExpression)
+  : parenthesizedExpression
+  | simpleIdentifier
+  | literalConstant
+  | stringLiteral
+  | callableReference
+  | functionLiteral
+  | objectLiteral
+  | collectionLiteral
+  | thisExpression
+  | superExpression
+  | ifExpression
+  | whenExpression
+  | tryExpression
+  | jumpExpression
+  ;
+parenthesizedExpression (used by navigationSuffix, primaryExpression)
+  : '(' expression ')'
+  ;
+collectionLiteral (used by primaryExpression)
+  : '[' (expression (',' expression)* ','?)? ']'
+  ;
+literalConstant (used by primaryExpression)
+  : BooleanLiteral
+  | IntegerLiteral
+  | HexLiteral
+  | BinLiteral
+  | CharacterLiteral
+  | RealLiteral
+  | 'null'
+  | LongLiteral
+  | UnsignedLiteral
+  ;
+stringLiteral (used by primaryExpression)
+  : lineStringLiteral
+  | multiLineStringLiteral
+  ;
+lineStringLiteral (used by stringLiteral)
+  : '"' (lineStringContent | lineStringExpression)* '"'
+  ;
+multiLineStringLiteral (used by stringLiteral)
+  : '"""' (multiLineStringContent | multiLineStringExpression | '"')*
+    TRIPLE_QUOTE_CLOSE
+  ;
+lineStringContent (used by lineStringLiteral)
+  : LineStrText
+  | LineStrEscapedChar
+  | LineStrRef
+  ;
+lineStringExpression (used by lineStringLiteral)
+  : '${' expression '}'
+  ;
+multiLineStringContent (used by multiLineStringLiteral)
+  : MultiLineStrText
+  | '"'
+  | MultiLineStrRef
+  ;
+multiLineStringExpression (used by multiLineStringLiteral)
+  : '${' expression '}'
+  ;
+lambdaLiteral (used by annotatedLambda, functionLiteral)
+  : '{' (lambdaParameters? '->')? statements '}'
+  ;
+lambdaParameters (used by lambdaLiteral)
+  : lambdaParameter (',' lambdaParameter)* ','?
+  ;
+lambdaParameter (used by lambdaParameters)
+  : variableDeclaration
+  | multiVariableDeclaration (':' type)?
+  ;
+anonymousFunction (used by functionLiteral)
+  : 'suspend'? 'fun' (type '.')?
+    parametersWithOptionalType (':' type)?
+    typeConstraints? functionBody?
+  ;
+functionLiteral (used by primaryExpression)
+  : lambdaLiteral
+  | anonymousFunction
+  ;
+objectLiteral (used by primaryExpression)
+  : 'data'? 'object' (':' delegationSpecifiers)? classBody?
+  ;
+thisExpression (used by primaryExpression)
+  : 'this'
+  | THIS_AT
+  ;
+superExpression (used by primaryExpression)
+  : 'super' ('<' type '>')? ('@' simpleIdentifier)?
+  | SUPER_AT
+  ;
+ifExpression (used by primaryExpression)
+  : 'if' '(' expression ')'
+    (controlStructureBody | (controlStructureBody? ';'? 'else' (controlStructureBody | ';')) | ';')
+  ;
+whenSubject (used by whenExpression)
+  : '(' (annotation* 'val' variableDeclaration '=')? expression ')'
+  ;
+whenExpression (used by primaryExpression)
+  : 'when' whenSubject? '{' whenEntry* '}'
+  ;
+whenEntry (used by whenExpression)
+  : whenCondition (',' whenCondition)* ','? '->' controlStructureBody semi?
+  | 'else' '->' controlStructureBody semi?
+  ;
+whenCondition (used by whenEntry)
+  : expression
+  | rangeTest
+  | typeTest
+  ;
+rangeTest (used by whenCondition)
+  : inOperator expression
+  ;
+typeTest (used by whenCondition)
+  : isOperator type
+  ;
+tryExpression (used by primaryExpression)
+  : 'try' block ((catchBlock+ finallyBlock?) | finallyBlock)
+  ;
+catchBlock (used by tryExpression)
+  : 'catch' '(' annotation* simpleIdentifier ':' type ','? ')' block
+  ;
+finallyBlock (used by tryExpression)
+  : 'finally' block
+  ;
+jumpExpression (used by primaryExpression)
+  : 'throw' expression
+  | ('return' | RETURN_AT) expression?
+  | 'continue'
+  | CONTINUE_AT
+  | 'break'
+  | BREAK_AT
+  ;
+callableReference (used by primaryExpression)
+  : receiverType? '::' (simpleIdentifier | 'class')
+  ;
+assignmentAndOperator (used by assignment)
+  : '+='
+  | '-='
+  | '*='
+  | '/='
+  | '%='
+  ;
+equalityOperator (used by equality)
+  : '!='
+  | '!=='
+  | '=='
+  | '==='
+  ;
+comparisonOperator (used by comparison)
+  : '<'
+  | '>'
+  | '<='
+  | '>='
+  ;
+inOperator (used by infixOperation, rangeTest)
+  : 'in'
+  | NOT_IN
+  ;
+isOperator (used by infixOperation, typeTest)
+  : 'is'
+  | NOT_IS
+  ;
+additiveOperator (used by additiveExpression)
+  : '+'
+  | '-'
+  ;
+multiplicativeOperator (used by multiplicativeExpression)
+  : '*'
+  | '/'
+  | '%'
+  ;
+asOperator (used by asExpression)
+  : 'as'
+  | 'as?'
+  ;
+prefixUnaryOperator (used by unaryPrefix)
+  : '++'
+  | '--'
+  | '-'
+  | '+'
+  | excl
+  ;
+postfixUnaryOperator (used by postfixUnarySuffix)
+  : '++'
+  | '--'
+  | '!' excl
+  ;
+excl (used by prefixUnaryOperator, postfixUnaryOperator)
+  : '!'
+  | EXCL_WS
+  ;
+memberAccessOperator (used by navigationSuffix)
+  : '.'
+  | safeNav
+  | '::'
+  ;
+safeNav (used by memberAccessOperator)
+  : '?' '.'
+  ;
+Modifiers
+modifiers (used by typeAlias, classDeclaration, primaryConstructor, classParameter, companionObject, functionDeclaration, propertyDeclaration, getter, setter, objectDeclaration, secondaryConstructor, enumEntry)
+  : annotation
+  | modifier+
+  ;
+parameterModifiers (used by functionValueParameter, functionValueParameterWithOptionalType)
+  : annotation
+  | parameterModifier+
+  ;
+modifier (used by modifiers)
+  : classModifier
+  | memberModifier
+  | visibilityModifier
+  | functionModifier
+  | propertyModifier
+  | inheritanceModifier
+  | parameterModifier
+  | platformModifier
+  ;
+typeModifiers (used by type, receiverType, definitelyNonNullableType)
+  : typeModifier+
+  ;
+typeModifier (used by typeModifiers)
+  : annotation
+  | 'suspend'
+  ;
+classModifier (used by modifier)
+  : 'enum'
+  | 'sealed'
+  | 'annotation'
+  | 'data'
+  | 'inner'
+  | 'value'
+  ;
+memberModifier (used by modifier)
+  : 'override'
+  | 'lateinit'
+  ;
+visibilityModifier (used by modifier)
+  : 'public'
+  | 'private'
+  | 'internal'
+  | 'protected'
+  ;
+varianceModifier (used by typeProjectionModifier, typeParameterModifier)
+  : 'in'
+  | 'out'
+  ;
+typeParameterModifiers (used by typeParameter)
+  : typeParameterModifier+
+  ;
+typeParameterModifier (used by typeParameterModifiers)
+  : reificationModifier
+  | varianceModifier
+  | annotation
+  ;
+functionModifier (used by modifier)
+  : 'tailrec'
+  | 'operator'
+  | 'infix'
+  | 'inline'
+  | 'external'
+  | 'suspend'
+  ;
+propertyModifier (used by modifier)
+  : 'const'
+  ;
+inheritanceModifier (used by modifier)
+  : 'abstract'
+  | 'final'
+  | 'open'
+  ;
+parameterModifier (used by parameterModifiers, modifier)
+  : 'vararg'
+  | 'noinline'
+  | 'crossinline'
+  ;
+reificationModifier (used by typeParameterModifier)
+  : 'reified'
+  ;
+platformModifier (used by modifier)
+  : 'expect'
+  | 'actual'
+  ;
+Annotations
+annotation (used by annotatedDelegationSpecifier, typeConstraint, variableDeclaration, typeProjectionModifier, statement, forStatement, unaryPrefix, annotatedLambda, valueArgument, whenSubject, catchBlock, modifiers, parameterModifiers, typeModifier, typeParameterModifier)
+  : singleAnnotation
+  | multiAnnotation
+  ;
+singleAnnotation (used by annotation)
+  : (annotationUseSiteTarget | '@' | AT_PRE_WS) unescapedAnnotation
+  ;
+multiAnnotation (used by annotation)
+  : (annotationUseSiteTarget | '@' | AT_PRE_WS) '[' unescapedAnnotation+ ']'
+  ;
+annotationUseSiteTarget (used by singleAnnotation, multiAnnotation)
+  : ('@' | AT_PRE_WS)
+    ('field' | 'property' | 'get' | 'set' | 'receiver' | 'param' | 'setparam' | 'delegate') ':'
+  ;
+unescapedAnnotation (used by fileAnnotation, singleAnnotation, multiAnnotation)
+  : constructorInvocation
+  | userType
+  ;
+Identifiers
+simpleIdentifier (used by importAlias, typeAlias, classDeclaration, classParameter, typeParameter, typeConstraint, companionObject, functionDeclaration, variableDeclaration, parameterWithOptionalType, parameter, objectDeclaration, enumEntry, simpleUserType, label, infixFunctionCall, directlyAssignableExpression, navigationSuffix, valueArgument, primaryExpression, superExpression, catchBlock, callableReference, identifier)
+  : Identifier
+  | 'abstract'
+  | 'annotation'
+  | 'by'
+  | 'catch'
+  | 'companion'
+  | 'constructor'
+  | 'crossinline'
+  | 'data'
+  | 'dynamic'
+  | 'enum'
+  | 'external'
+  | 'final'
+  | 'finally'
+  | 'get'
+  | 'import'
+  | 'infix'
+  | 'init'
+  | 'inline'
+  | 'inner'
+  | 'internal'
+  | 'lateinit'
+  | 'noinline'
+  | 'open'
+  | 'operator'
+  | 'out'
+  | 'override'
+  | 'private'
+  | 'protected'
+  | 'public'
+  | 'reified'
+  | 'sealed'
+  | 'tailrec'
+  | 'set'
+  | 'vararg'
+  | 'where'
+  | 'field'
+  | 'property'
+  | 'receiver'
+  | 'param'
+  | 'setparam'
+  | 'delegate'
+  | 'file'
+  | 'expect'
+  | 'actual'
+  | 'const'
+  | 'suspend'
+  | 'value'
+  ;
+identifier (used by packageHeader, importHeader)
+  : simpleIdentifier ('.' simpleIdentifier)*
+  ;
+Lexical grammar
+General
+ShebangLine (used by shebangLine)
+  : '#!' ~[\r\n]*
+  ;
+DelimitedComment (used by DelimitedComment, Hidden)
+  : ('/*' (DelimitedComment | .)*? '*/') 
+  ;
+LineComment (used by Hidden)
+  : ('//' ~[\r\n]*) 
+  ;
+WS (used by Hidden)
+  : [\u0020\u0009\u000C] 
+  ;
+helper
+Hidden (used by EXCL_WS, AT_POST_WS, AT_PRE_WS, AT_BOTH_WS, QUEST_WS, NOT_IS, NOT_IN)
+  : DelimitedComment
+  | LineComment
+  | WS
+  ;
+Separators and operations
+RESERVED
+  : '...'
+  ;
+EXCL_WS (used by excl)
+  : '!' Hidden
+  ;
+DOUBLE_ARROW
+  : '=>'
+  ;
+DOUBLE_SEMICOLON
+  : ';;'
+  ;
+HASH
+  : '#'
+  ;
+AT_POST_WS (used by label)
+  : '@' Hidden
+  ;
+AT_PRE_WS (used by fileAnnotation, singleAnnotation, multiAnnotation, annotationUseSiteTarget)
+  : Hidden '@'
+  ;
+AT_BOTH_WS
+  : Hidden '@' Hidden
+  ;
+QUEST_WS (used by quest)
+  : '?' Hidden
+  ;
+SINGLE_QUOTE
+  : '\''
+  ;
+Keywords
+RETURN_AT (used by jumpExpression)
+  : 'return@' Identifier
+  ;
+CONTINUE_AT (used by jumpExpression)
+  : 'continue@' Identifier
+  ;
+BREAK_AT (used by jumpExpression)
+  : 'break@' Identifier
+  ;
+THIS_AT (used by thisExpression)
+  : 'this@' Identifier
+  ;
+SUPER_AT (used by superExpression)
+  : 'super@' Identifier
+  ;
+TYPEOF
+  : 'typeof'
+  ;
+NOT_IS (used by isOperator)
+  : '!is' Hidden
+  ;
+NOT_IN (used by inOperator)
+  : '!in' Hidden
+  ;
+Literals
+helper
+DecDigit (used by DecDigitOrSeparator, DecDigits, IntegerLiteral)
+  : '0'..'9'
+  ;
+helper
+DecDigitNoZero (used by IntegerLiteral)
+  : '1'..'9'
+  ;
+helper
+DecDigitOrSeparator (used by DecDigits, IntegerLiteral)
+  : DecDigit
+  | '_'
+  ;
+helper
+DecDigits (used by DoubleExponent, FloatLiteral, DoubleLiteral)
+  : DecDigit DecDigitOrSeparator* DecDigit
+  | DecDigit
+  ;
+helper
+DoubleExponent (used by DoubleLiteral)
+  : [eE] [+-]? DecDigits
+  ;
+RealLiteral (used by literalConstant)
+  : FloatLiteral
+  | DoubleLiteral
+  ;
+FloatLiteral (used by RealLiteral)
+  : DoubleLiteral [fF]
+  | DecDigits [fF]
+  ;
+DoubleLiteral (used by RealLiteral, FloatLiteral)
+  : DecDigits? '.' DecDigits DoubleExponent?
+  | DecDigits DoubleExponent
+  ;
+IntegerLiteral (used by literalConstant, UnsignedLiteral, LongLiteral)
+  : DecDigitNoZero DecDigitOrSeparator* DecDigit
+  | DecDigit
+  ;
+helper
+HexDigit (used by HexDigitOrSeparator, HexLiteral, UniCharacterLiteral)
+  : [0-9a-fA-F]
+  ;
+helper
+HexDigitOrSeparator (used by HexLiteral)
+  : HexDigit
+  | '_'
+  ;
+HexLiteral (used by literalConstant, UnsignedLiteral, LongLiteral)
+  : '0' [xX] HexDigit HexDigitOrSeparator* HexDigit
+  | '0' [xX] HexDigit
+  ;
+helper
+BinDigit (used by BinDigitOrSeparator, BinLiteral)
+  : [01]
+  ;
+helper
+BinDigitOrSeparator (used by BinLiteral)
+  : BinDigit
+  | '_'
+  ;
+BinLiteral (used by literalConstant, UnsignedLiteral, LongLiteral)
+  : '0' [bB] BinDigit BinDigitOrSeparator* BinDigit
+  | '0' [bB] BinDigit
+  ;
+UnsignedLiteral (used by literalConstant)
+  : (IntegerLiteral | HexLiteral | BinLiteral) [uU] [lL]?
+  ;
+LongLiteral (used by literalConstant)
+  : (IntegerLiteral | HexLiteral | BinLiteral) [lL]
+  ;
+BooleanLiteral (used by literalConstant)
+  : 'true'
+  | 'false'
+  ;
+CharacterLiteral (used by literalConstant)
+  : '\'' (EscapeSeq | ~[\n\r'\\]) '\''
+  ;
+Identifiers
+helper
+UnicodeDigit (used by Identifier)
+  : UNICODE_CLASS_ND
+  ;
+Identifier (used by simpleIdentifier, RETURN_AT, CONTINUE_AT, BREAK_AT, THIS_AT, SUPER_AT, IdentifierOrSoftKey)
+  : (Letter | '_') (Letter | '_' | UnicodeDigit)*
+  | '`' ~([\r\n] | '`')+ '`'
+  ;
+Depending on the target and publicity of the declaration, the set of allowed symbols in identifiers is different. This rule contains the union of allowed symbols from all targets. Thus, the code for any target can be parsed using the grammar.
+
+The allowed symbols in identifiers corresponding to the target and publicity of the declaration are given below.
+
+Kotlin/JVM (any declaration publicity)
+~ ( [\r\n] | '`' | '.' | ';' | ':' | '\' | '/' | '[' | ']' | '<' | '>' )
+Kotlin/Android (any declaration publicity)
+The allowed symbols are different from allowed symbols for Kotlin/JVM and correspond to the Dalvik Executable format.
+
+Kotlin/JS (private declarations)
+~ ( [\r\n] | '`' )
+Kotlin/JS (public declarations)
+The allowed symbols for public declarations correspond to the ECMA specification (section 7.6) except that ECMA reserved words is allowed.
+
+Kotlin/Native (any declaration publicity)
+~ ( [\r\n] | '`' )
+
+
+IdentifierOrSoftKey (used by FieldIdentifier)
+  : Identifier
+  | 'abstract'
+  | 'annotation'
+  | 'by'
+  | 'catch'
+  | 'companion'
+  | 'constructor'
+  | 'crossinline'
+  | 'data'
+  | 'dynamic'
+  | 'enum'
+  | 'external'
+  | 'final'
+  | 'finally'
+  | 'import'
+  | 'infix'
+  | 'init'
+  | 'inline'
+  | 'inner'
+  | 'internal'
+  | 'lateinit'
+  | 'noinline'
+  | 'open'
+  | 'operator'
+  | 'out'
+  | 'override'
+  | 'private'
+  | 'protected'
+  | 'public'
+  | 'reified'
+  | 'sealed'
+  | 'tailrec'
+  | 'vararg'
+  | 'where'
+  | 'get'
+  | 'set'
+  | 'field'
+  | 'property'
+  | 'receiver'
+  | 'param'
+  | 'setparam'
+  | 'delegate'
+  | 'file'
+  | 'expect'
+  | 'actual'
+  | 'value'
+  | 'const'
+  | 'suspend'
+  ;
+FieldIdentifier (used by LineStrRef, MultiLineStrRef)
+  : '$' IdentifierOrSoftKey
+  ;
+helper
+UniCharacterLiteral (used by EscapeSeq, LineStrEscapedChar)
+  : '\\' 'u' HexDigit HexDigit HexDigit HexDigit
+  ;
+helper
+EscapedIdentifier (used by EscapeSeq, LineStrEscapedChar)
+  : '\\' ('t' | 'b' | 'r' | 'n' | '\'' | '"' | '\\' | '$')
+  ;
+helper
+EscapeSeq (used by CharacterLiteral)
+  : UniCharacterLiteral
+  | EscapedIdentifier
+  ;
+Characters
+helper
+Letter (used by Identifier)
+  : UNICODE_CLASS_LU
+  | UNICODE_CLASS_LL
+  | UNICODE_CLASS_LT
+  | UNICODE_CLASS_LM
+  | UNICODE_CLASS_LO
+  ;
+Strings
+LineStrRef (used by lineStringContent)
+  : FieldIdentifier
+  ;
+See String templates
+
+LineStrText (used by lineStringContent)
+  : ~('\\' | '"' | '$')+
+  | '$'
+  ;
+LineStrEscapedChar (used by lineStringContent)
+  : EscapedIdentifier
+  | UniCharacterLiteral
+  ;
+TRIPLE_QUOTE_CLOSE (used by multiLineStringLiteral)
+  : ('"'? '"""') 
+  ;
+MultiLineStrRef (used by multiLineStringContent)
+  : FieldIdentifier
+  ;
+MultiLineStrText (used by multiLineStringContent)
+  : ~('"' | '$')+
+  | '$'
+  ;
+ErrorCharacter
+  : .
+  ;
